@@ -5,11 +5,18 @@
   "main": "server.js",
   "scripts": {
     "postinstall": "prisma generate",
-    "build" : "prisma generate",
-  "dev": "nodemon server.js",
-  "start": "node server.js"
-},
-  "keywords": ["api", "express", "node"],
+    "build": "prisma generate",
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "api",
+    "express",
+    "node"
+  ],
   "author": "ivan",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/extension-accelerate": "^2.0.2"
+  }
 }
