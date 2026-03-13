@@ -2,91 +2,135 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
+
+const { PrismaClient } = require("@prisma/client");
+const { withAccelerate } = require("@prisma/extension-accelerate");
+
+const prisma = new PrismaClient({
+  accelerateUrl: process.env.DATABASE_URL,
+}).$extends(withAccelerate());
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
-// Mock data
-let movies = [
-  { id: 1, title: "Inception", year: 2010 },
-  { id: 2, title: "Interstellar", year: 2014 }
-];
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 
-// --- USERS ROUTES (já existentes) ---
-app.get("/users", (req, res) => {
-  res.status(200).json({ message: "OK - GET users" });
-});
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
 
-app.post("/users", (req, res) => {
-  res.status(200).json({ message: "OK - POST users" });
-});
 
-app.put("/users/:id", (req, res) => {
-  res.status(200).json({ message: "OK - PUT users" });
-});
+// GET - Listar todas as tarefas
+app.get("/tasks", asyncHandler(async (req, res) => {
+  const allTasks = await prisma.task.findMany();
+  res.status(200).json({ data: allTasks });
+}));
 
-app.delete("/users/:id", (req, res) => {
-  res.status(200).json({ message: "OK - DELETE users" });
-});
 
-// --- MOVIES ROUTES ---
-
-// GET /movies - retorna todas
-app.get("/movies", (req, res) => {
-  res.status(200).json(movies);
-});
-
-// GET /movies/:id - retorna um filme pelo ID
-app.get("/movies/:id", (req, res) => {
+// GET - Buscar tarefa por ID
+app.get("/tasks/:id", asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
-  const movie = movies.find(m => m.id === id);
-  if (!movie) return res.status(404).json({ error: "Movie not found" });
-  res.status(200).json(movie);
-});
 
-// POST /movies - cria um novo filme
-app.post("/movies", (req, res) => {
-  const { title, year } = req.body;
-  if (!title || !year) return res.status(400).json({ error: "Title and year are required" });
+  const task = await prisma.task.findUnique({
+    where: { id }
+  });
 
-  const newMovie = {
-    id: movies.length ? movies[movies.length - 1].id + 1 : 1,
-    title,
-    year
-  };
-  movies.push(newMovie);
-  res.status(201).json(newMovie);
-});
+  if (!task) {
+    return res.status(404).json({ message: "Tarefa não encontrada" });
+  }
 
-// PUT /movies/:id - atualiza um filme pelo ID
-app.put("/movies/:id", (req, res) => {
+  res.status(200).json({ data: task });
+}));
+
+
+// POST - Criar tarefa
+app.post("/tasks", asyncHandler(async (req, res) => {
+  const { title, completed, priority } = req.body;
+
+  if (!title || priority === undefined) {
+    return res.status(400).json({
+      message: "Campos 'title' e 'priority' são obrigatórios"
+    });
+  }
+
+  const newTask = await prisma.task.create({
+    data: {
+      title,
+      completed: completed === true || completed === "true",
+      priority
+    }
+  });
+
+  res.status(201).json({ data: newTask });
+}));
+
+
+// PUT - Atualizar tarefa
+app.put("/tasks/:id", asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
-  const { title, year } = req.body;
-  const movieIndex = movies.findIndex(m => m.id === id);
+  const { title, completed, priority } = req.body;
 
-  if (movieIndex === -1) return res.status(404).json({ error: "Movie not found" });
-  if (!title && !year) return res.status(400).json({ error: "Title or year is required to update" });
+  const updatedTask = await prisma.task.update({
+    where: { id },
+    data: {
+      title,
+      completed: completed === true || completed === "true",
+      priority
+    }
+  });
 
-  if (title) movies[movieIndex].title = title;
-  if (year) movies[movieIndex].year = year;
+  res.status(200).json({ data: updatedTask });
+}));
 
-  res.status(200).json(movies[movieIndex]);
-});
 
-// DELETE /movies/:id - remove um filme pelo ID
-app.delete("/movies/:id", (req, res) => {
+// DELETE - Eliminar tarefa
+app.delete("/tasks/:id", asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id);
-  const movieIndex = movies.findIndex(m => m.id === id);
-  if (movieIndex === -1) return res.status(404).json({ error: "Movie not found" });
 
-  const deletedMovie = movies.splice(movieIndex, 1);
-  res.status(200).json({ message: "Movie deleted", movie: deletedMovie[0] });
+  await prisma.task.delete({
+    where: { id }
+  });
+
+  res.status(200).json({ message: "Tarefa eliminada com sucesso" });
+}));
+
+
+// GET - Filtrar por prioridade
+app.get("/tasks/priority/:priority", asyncHandler(async (req, res) => {
+  const priorityTipo = req.params.priority;
+
+  const filtrarTasks = await prisma.task.findMany({
+    where: { priority: priorityTipo }
+  });
+
+  if (filtrarTasks.length === 0) {
+    return res.status(404).json({ message: "Nenhuma tarefa encontrada." });
+  }
+
+  res.status(200).json({ data: filtrarTasks });
+}));
+
+
+// 404
+app.use((req, res) => {
+  res.status(404).json({ message: "Rota não encontrada" });
 });
 
-// --- START SERVER ---
-const PORT = process.env.SERVER_PORT || 4242;
+
+// Middleware global de erro
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: err.message || "Erro interno do servidor" });
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Servidor a correr na porta ${PORT}`);
 });
+
+module.exports = app;
+

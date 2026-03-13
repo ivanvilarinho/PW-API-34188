@@ -4,10 +4,24 @@
   "description": "API REST - Programação Web",
   "main": "server.js",
   "scripts": {
-  "dev": "nodemon app.js",
-  "start": "node app.js"
-},
-  "keywords": ["api", "express", "node"],
+    "dev": "nodemon app.js",
+    "start": "node app.js"
+  },
+  "keywords": [
+    "api",
+    "express",
+    "node"
+  ],
   "author": "ivan",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/client": "^5.0.0",
+    "dotenv": "^17.3.1",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.18.0",
+    "prisma": "^5.0.0"
+  }
 }
